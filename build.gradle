@@ -1,0 +1,47 @@
+
+apply plugin: 'java'
+apply plugin: 'idea'
+
+
+group 'afterwind'
+version '1.0-SNAPSHOT'
+
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.4'
+    }
+}
+
+apply plugin: 'com.github.johnrengelman.shadow'
+
+repositories {
+//    mavenCentral()
+    jcenter() //This prevents issues with transitive dependencies
+    maven {
+        url  "https://jitpack.io"
+    }
+}
+
+//noinspection GroovyAssignabilityCheck
+jar {
+    manifest {
+        attributes(
+                'Main-Class': 'afterwind.relax_bot.RelaxBot'
+        )
+    }
+}
+
+idea {
+    module {
+        sourceDirs += file("src/java/main")
+    }
+}
+
+dependencies {
+    compile 'org.slf4j:slf4j-simple:1.6.1'
+    compile "com.github.austinv11:Discord4j:2.6.1"
+    testCompile group: 'junit', name: 'junit', version: '4.11'
+}
