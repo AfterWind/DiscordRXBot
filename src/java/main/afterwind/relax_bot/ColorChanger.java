@@ -2,98 +2,115 @@ package afterwind.relax_bot;
 
 import sx.blah.discord.api.events.EventSubscriber;
 import sx.blah.discord.handle.impl.events.MessageReceivedEvent;
-import sx.blah.discord.handle.obj.IGuild;
-import sx.blah.discord.handle.obj.IRole;
-import sx.blah.discord.handle.obj.IUser;
-import sx.blah.discord.util.DiscordException;
-import sx.blah.discord.util.MissingPermissionsException;
-import sx.blah.discord.util.RateLimitException;
+import sx.blah.discord.handle.obj.*;
 
 import java.awt.*;
-import java.lang.reflect.ParameterizedType;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 
 public class ColorChanger {
 
     private IGuild guild;
-    private Map<String, IRole> colors = new HashMap<>();
+    private Map<Color, IRole> colorRoles = new HashMap<>();
 
     public ColorChanger(IGuild guild) {
         this.guild = guild;
         initColorRoles();
     }
 
+    /**
+     * Gets all the roles that already exist in the guild
+     */
     private void initColorRoles() {
-        colors.put("blue", getRole("RX_blue", Color.blue));
-        colors.put("red", getRole("RX_red", Color.red));
-        colors.put("orange", getRole("RX_orange", Color.orange));
-        colors.put("black", getRole("RX_black", Color.black));
-        colors.put("white", getRole("RX_white", Color.white));
-        colors.put("green", getRole("RX_green", Color.green));
-        colors.put("yellow", getRole("RX_yellow", Color.yellow));
-        colors.put("pink", getRole("RX_pink", Color.pink));
-        colors.put("cyan", getRole("RX_cyan", Color.cyan));
-        colors.put("gray", getRole("RX_gray", Color.gray));
-        colors.put("light_gray", getRole("RX_light_gray", Color.lightGray));
-        colors.put("dark_gray", getRole("RX_dark_gray", Color.darkGray));
-        colors.put("magenta", getRole("RX_magenta", Color.magenta));
-//
-//        List<IRole> roles = guild.getRoles().subList(3, guild.getRoles().size());
-//        for (IRole r : roles) {
-//            System.out.println(r.getName() + " " + r.getPosition());
-//        }
-//        if (roles.get(0).getName().equals("RX_blue")) {
-//            return;
-//        }
-//        List<IRole> ordered = new ArrayList<>();
-//        ordered.addAll(roles.subList(0, roles.size() - 13));
-//        ordered.addAll(roles.subList(roles.size() - 13, roles.size()));
-//        ordered.add(guild.getRoles().get(2));
-//        ordered.add(guild.getRoles().get(1));
-//        ordered.add(guild.getRoles().get(0));
-//
-//        try {
-//            System.out.println("Trying to reorder!");
-//            guild.reorderRoles((IRole[]) ordered.toArray(new IRole[ordered.size()]));
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
+        for (IRole role : guild.getRoles()) {
+            if (role.getName().startsWith("RX_Color")) {
+                colorRoles.put(role.getColor(), role);
+            }
+        }
     }
 
-    private IRole getRole(String name, Color color) {
+    /**
+     * Gets the color role with the given color
+     * Creates the color role if it doesn't exist
+     * @param color color
+     * @return The role with the specified color
+     */
+    private IRole getRole(Color color) {
         try {
-            List<IRole> roles = guild.getRolesByName(name);
-            IRole role;
-            if (roles.size() <= 0) {
-                role = guild.createRole();
-                role.changeName(name);
-                role.changeColor(color);
-            } else {
-                role = roles.get(0);
+            IRole colorRole = colorRoles.get(color);
+            if (colorRole == null) {
+                colorRole = guild.createRole();
+                colorRole.changeName(String.format("RX_Color_#%02x%02x%02x", color.getRed(), color.getGreen(), color.getBlue()));
+                colorRole.changeColor(color);
+                colorRole.changePermissions(EnumSet.noneOf(Permissions.class));
+                colorRoles.put(color, colorRole);
             }
-            return role;
+            return colorRole;
         } catch (Exception ex) {
             ex.printStackTrace();
             return null;
         }
     }
 
-    private boolean giveRole(String name, IUser user) {
+    /**
+     * Gives a color to the IUser
+     * @param color color
+     * @param user user
+     */
+    private void giveColor(Color color, IUser user) {
+
         try {
-            for (IRole role : colors.values()) {
-                if (user.getRolesForGuild(guild).contains(role)) {
-                    user.removeRole(role);
+            List<IRole> userRoles = user.getRolesForGuild(guild);
+            for (int i = 0; i < userRoles.size(); i++) {
+                IRole role = userRoles.get(i);
+                if (role.getName().startsWith("RX_Color")) {
+                    if (!role.getColor().equals(color)) {
+                        user.removeRole(role);
+                        i--;
+                    }
                 }
             }
-            user.addRole(colors.get(name));
-            return true;
+            user.addRole(getRole(color));
         } catch (Exception ex) {
             ex.printStackTrace();
-            return false;
         }
+    }
+
+    /**
+     * Checks if there are any color roles that nobody uses and deletes them
+     */
+    public void checkRoles() {
+        List<Color> toRemove = new ArrayList<>();
+        try {
+            for (Iterator<IRole> it = colorRoles.values().iterator(); it.hasNext();) {
+
+                IRole role = it.next();
+                boolean isUsed = false;
+                for (IUser user : guild.getUsers()) {
+                    if (user.getRolesForGuild(guild).contains(role)) {
+                        isUsed = true;
+                        break;
+                    }
+                }
+                if (!isUsed) {
+                    for (IUser user : guild.getUsers()) {
+                        if (user.getRolesForGuild(guild).contains(role)) {
+                            user.removeRole(role);
+                        }
+                    }
+                    toRemove.add(role.getColor());
+                }
+            }
+            for (Color color :toRemove) {
+                colorRoles.get(color).delete();
+                colorRoles.remove(color);
+                System.out.println("Color " + color + " removed!");
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+
     }
 
     @EventSubscriber
@@ -104,24 +121,40 @@ public class ColorChanger {
 
         try {
             if (ev.getMessage().getMentions().contains(RelaxBot.client.getOurUser())) {
+                IUser author = ev.getMessage().getAuthor();
+
                 String[] split = ev.getMessage().getContent().split(" +");
                 System.out.println(ev.getMessage().getContent());
 
-                if (split.length < 3) {
-                    return;
-                }
-                System.out.println(split[0] + "|" + split[1] + "|" + split[2]);
-
                 if (split[1].trim().equals("color")) {
-                    String color = split[2].trim();
-                    if (!colors.keySet().contains(color)) {
-                        ev.getMessage().getChannel().sendMessage(ev.getMessage().getAuthor().mention() + ": I am sorry but color " + color + " does not exist!");
+                    if (split.length < 3) {
+                        Utils.sendMessage(author, ev.getMessage().getChannel(), "command usage is *color #rrggbb*");
                         return;
                     }
-                    giveRole(color, ev.getMessage().getAuthor());
-                    ev.getMessage().getChannel().sendMessage(ev.getMessage().getAuthor().mention() + ": your new color is now " + color + "!");
+
+
+                    String colorName = split[2].trim();
+                    if (!colorName.startsWith("#")) {
+                        Utils.sendMessage(author, ev.getMessage().getChannel(), "invalid color format, please use *#rrggbb* format");
+                        return;
+                    }
+                    if (colorName.endsWith("000000")) {
+                        Utils.sendMessage(author, ev.getMessage().getChannel(), "this color is used as 'default color' for Discord roles. Try *#000001* instead.");
+                        return;
+                    }
+
+                    try {
+                        Color color = Color.decode(colorName);
+                        giveColor(color, author);
+                    } catch (NumberFormatException ex) {
+                        Utils.sendMessage(author, ev.getMessage().getChannel(), "invalid color format!");
+                        return;
+                    }
+                    Utils.sendMessage(author, ev.getMessage().getChannel(), "your new color is now " + colorName);
+                } else if (split[1].trim().equals("cleanup")) {
+                    checkRoles();
                 } else {
-                    ev.getMessage().getChannel().sendMessage(ev.getMessage().getAuthor().mention() + ": I am sorry but this command does not exist!");
+                    Utils.sendMessage(author, ev.getMessage().getChannel(), "this command does not exist!");
                 }
             }
         } catch (Exception ex) {
