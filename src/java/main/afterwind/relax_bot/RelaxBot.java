@@ -11,7 +11,7 @@ public class RelaxBot {
     private static EventDispatcher dispatcher;
 
     public static void main(String[] args) {
-        client = getClient("MjU4MjYyMzY1MjMyMDM3ODky.CzHTTg.6PalxtzS9KRZ-01QpDQeK8kMw8E", true);
+        client = getClient("MjU4MjYyMzY1MjMyMDM3ODky.C0PxTw.mr3CpwyIEBUnmaHdFsboNjBEfWE", true);
         dispatcher = client.getDispatcher();
         dispatcher.registerListener(new GenericEventHandler());
     }

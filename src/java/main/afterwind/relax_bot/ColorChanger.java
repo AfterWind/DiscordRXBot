@@ -52,24 +52,27 @@ public class ColorChanger {
         }
     }
 
+    private void removeColor(IUser user) {
+        try {
+            List<IRole> userRoles = new ArrayList<>(user.getRolesForGuild(guild));
+            for (IRole role : userRoles) {
+                if (role.getName().startsWith("RX_Color")) {
+                    user.removeRole(role);
+                }
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
     /**
      * Gives a color to the IUser
      * @param color color
      * @param user user
      */
     private void giveColor(Color color, IUser user) {
-
         try {
-            List<IRole> userRoles = user.getRolesForGuild(guild);
-            for (int i = 0; i < userRoles.size(); i++) {
-                IRole role = userRoles.get(i);
-                if (role.getName().startsWith("RX_Color")) {
-                    if (!role.getColor().equals(color)) {
-                        user.removeRole(role);
-                        i--;
-                    }
-                }
-            }
+            removeColor(user);
             user.addRole(getRole(color));
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -109,8 +112,6 @@ public class ColorChanger {
         } catch (Exception ex) {
             ex.printStackTrace();
         }
-
-
     }
 
     @EventSubscriber
@@ -128,13 +129,12 @@ public class ColorChanger {
 
                 if (split[1].trim().equals("color")) {
                     if (split.length < 3) {
-                        Utils.sendMessage(author, ev.getMessage().getChannel(), "command usage is *color #rrggbb*");
+                        Utils.sendMessage(author, ev.getMessage().getChannel(), "command usage is *color #rrggbb [player]*");
                         return;
                     }
 
-
                     String colorName = split[2].trim();
-                    if (!colorName.startsWith("#")) {
+                    if (!colorName.startsWith("#") && !colorName.equals("clear")) {
                         Utils.sendMessage(author, ev.getMessage().getChannel(), "invalid color format, please use *#rrggbb* format");
                         return;
                     }
@@ -142,17 +142,30 @@ public class ColorChanger {
                         Utils.sendMessage(author, ev.getMessage().getChannel(), "this color is used as 'default color' for Discord roles. Try *#000001* instead.");
                         return;
                     }
+                    IUser user = author;
+                    if (split.length > 3) {
+                        user = guild.getUsersByName(split[3]).get(0);
+                        if (user != author && !Utils.hasPermission(author.getRolesForGuild(guild), Permissions.MANAGE_ROLES)) {
+                            Utils.sendMessage(author, ev.getMessage().getChannel(), "you do not have permission to change someone else's color");
+                            return;
+                        }
+                    }
 
                     try {
-                        Color color = Color.decode(colorName);
-                        giveColor(color, author);
+                        if (colorName.equals("clear")) {
+                            removeColor(user);
+                        } else {
+                            Color color = Color.decode(colorName);
+                            giveColor(color, user);
+                        }
                     } catch (NumberFormatException ex) {
                         Utils.sendMessage(author, ev.getMessage().getChannel(), "invalid color format!");
                         return;
                     }
-                    Utils.sendMessage(author, ev.getMessage().getChannel(), "your new color is now " + colorName);
+                    Utils.sendMessage(user, ev.getMessage().getChannel(), "your new color is now " + colorName);
                 } else if (split[1].trim().equals("cleanup")) {
                     checkRoles();
+                    Utils.sendMessage(author, ev.getMessage().getChannel(), "removed all unused bot created roles!");
                 } else {
                     Utils.sendMessage(author, ev.getMessage().getChannel(), "this command does not exist!");
                 }
